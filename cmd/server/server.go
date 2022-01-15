@@ -13,7 +13,7 @@ import (
 var (
 	versionFlag = flag.Bool("version", false, "Show version information.")
 	debugFlag   = flag.Bool("debug", true, "Show debug information.")
-	addrFlag    = flag.String("addr", "127.0.0.1:7654", "Listen address")
+	addrFlag    = flag.String("addr", ":7654", "Listen address")
 	logFileFlag = flag.String("log.file", "tcp-message-server.log", "Path to the log file.")
 )
 
@@ -59,4 +59,5 @@ func main() {
 		}
 
 	}()
+
 }
