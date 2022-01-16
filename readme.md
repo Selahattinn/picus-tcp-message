@@ -96,3 +96,18 @@ Example Commands:
 
 
 
+## Example client commands
+
+```bash
+/help
+/join TestUser
+/msg Test Message
+/list
+/get-m-from-me
+/get-m-to-me
+/get-last 3
+/get-contains Test
+/get-m-from-me ||contains Test ||last 3
+/get-m-to-me ||contains Test ||last 3
+/get-last 3 ||contains Test
+```

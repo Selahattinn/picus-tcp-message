@@ -363,7 +363,7 @@ func (s *server) getLastMassge(c *client.Client, args []string) {
 
 // For to write to msg which is contains a word
 func (s *server) getContains(c *client.Client, args []string) {
-	if len(args) > 2 || len(args) < 2 {
+	if len(args)%2 == 1 {
 		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/get-last 10")
 		return
 	}
