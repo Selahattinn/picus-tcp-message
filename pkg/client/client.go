@@ -4,13 +4,32 @@ import (
 	"bufio"
 	"crypto/rsa"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
-	"github.com/Selahattinn/picus-tcp-message/pkg/command"
 	"github.com/Selahattinn/picus-tcp-message/pkg/crypto"
+	"github.com/sirupsen/logrus"
 )
+
+type commandID int
+
+const (
+
+	// using iota to generate ever increasing numbers
+	CmdName commandID = iota
+	CmdJoin
+	CmdList
+	CmdMsg
+	CmdQuit
+	CmdHelp
+)
+
+// structure for a command
+type Command struct {
+	ID     commandID
+	Client *Client
+	Args   []string
+}
 
 // structure of a client i.e a user ( a new connection, will have this structure )
 type Client struct {
@@ -27,7 +46,7 @@ type Client struct {
 	Contact string
 
 	// commands to facilitate chat system
-	Commands chan<- command.Command
+	Commands chan<- Command
 
 	// private
 	Private *rsa.PrivateKey
@@ -45,6 +64,7 @@ func (c *Client) ReadInput() {
 		// read user input
 		msg, err := bufio.NewReader(c.Conn).ReadString('\n')
 		if err != nil {
+			logrus.WithError(err).Info("Error accured when reading msg")
 			// abort if an error occurs
 			return
 		}
@@ -59,43 +79,43 @@ func (c *Client) ReadInput() {
 
 		case "/name":
 			// specify your name
-			c.Commands <- command.Command{
-				ID:     command.CmdName,
+			c.Commands <- Command{
+				ID:     CmdName,
 				Client: c,
 				Args:   args,
 			}
 		case "/join":
 			// connect to another user :
 			// to be able to chat with him/her
-			c.Commands <- command.Command{
-				ID:     command.CmdJoin,
+			c.Commands <- Command{
+				ID:     CmdJoin,
 				Client: c,
 				Args:   args,
 			}
 		case "/list":
 			// display all the available users on the server :
 			// these are ones you ( a client ) can join and chat to
-			c.Commands <- command.Command{
-				ID:     command.CmdList,
+			c.Commands <- Command{
+				ID:     CmdList,
 				Client: c,
 			}
 		case "/msg":
 			// send a message to the user ( another client ) you have joined
-			c.Commands <- command.Command{
-				ID:     command.CmdMsg,
+			c.Commands <- Command{
+				ID:     CmdMsg,
 				Client: c,
 				Args:   args,
 			}
 		case "/quit":
 			// exit the chat system
-			c.Commands <- command.Command{
-				ID:     command.CmdQuit,
+			c.Commands <- Command{
+				ID:     CmdQuit,
 				Client: c,
 			}
 		case "/help":
 			// return command list
-			c.Commands <- command.Command{
-				ID:     command.CmdHelp,
+			c.Commands <- Command{
+				ID:     CmdHelp,
 				Client: c,
 			}
 			// for any other command
@@ -111,7 +131,7 @@ func (c *Client) Err(err error) {
 
 	_, e := c.Conn.Write([]byte("err: " + err.Error() + "\n"))
 	if e != nil {
-		log.Fatalln("unable to write to connection", e)
+		logrus.WithError(e).Fatalln("unable to write to connection", e)
 	}
 }
 
@@ -126,14 +146,15 @@ func (c *Client) Msg(x *Client, msg string) {
 		// write message to client
 		_, e := x.Conn.Write([]byte("> " + dMsg + "\n"))
 		if e != nil {
-			log.Fatalln("unable to write over client connection")
+			logrus.WithError(e).Fatalln("unable to write to connection", e)
+
 		}
 
 	} else {
 		// write message to client
 		_, e := x.Conn.Write([]byte("> " + msg + "\n"))
 		if e != nil {
-			log.Fatalln("unable to write over client connection")
+			logrus.WithError(e).Fatalln("unable to write to connection", e)
 		}
 	}
 

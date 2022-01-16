@@ -4,14 +4,22 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
 	"github.com/Selahattinn/picus-tcp-message/pkg/client"
-	"github.com/Selahattinn/picus-tcp-message/pkg/command"
 	"github.com/Selahattinn/picus-tcp-message/pkg/crypto"
+	"github.com/Selahattinn/picus-tcp-message/pkg/repository"
+	"github.com/Selahattinn/picus-tcp-message/pkg/service"
+	"github.com/sirupsen/logrus"
 )
+
+type Config struct {
+	ListenAddress string `yaml:"host"`
+
+	Service *service.Config         `yaml:"service"`
+	DB      *repository.MySQLConfig `yaml:"database"`
+}
 
 // structure of server
 type server struct {
@@ -21,43 +29,61 @@ type server struct {
 	contacts map[string]*client.Client
 
 	// channel on which server receives commands from clients
-	commands chan command.Command
+	commands chan client.Command
+
+	// Service Part
+	Service service.Service
+
+	// Yaml Config
+	Config *Config
 }
 
 // function to instantiate new server
-func newServer() *server {
+func NewServer(cfg *Config) *server {
 
 	return &server{
 		contacts: make(map[string]*client.Client),
-		commands: make(chan command.Command),
+		commands: make(chan client.Command),
+		Config:   cfg,
 	}
 }
 
 // function to run server
-func (s *server) run() {
+func (s *server) Run() {
 
-	log.Printf("running server...")
+	// Establish database connection
+	repo, err := repository.NewMySQLRepository(s.Config.DB)
+	if err != nil {
+		logrus.WithError(err).Fatal("Could not create mysql repository")
+	}
+
+	s.Service, err = service.NewProvider(s.Config.Service, repo)
+	if err != nil {
+		logrus.WithError(err).Fatal("Could not create service provider")
+	}
+
+	logrus.Info("running server...")
 
 	// loop through incoming commands..
 	for cmd := range s.commands {
 		// based on the command id, execute desired functions
 		switch cmd.ID {
-		case command.CmdName:
+		case client.CmdName:
 			// update client name to input
 			s.name(cmd.Client, cmd.Args[1])
-		case command.CmdJoin:
+		case client.CmdJoin:
 			// update client contact to input
 			s.join(cmd.Client, cmd.Args[1])
-		case command.CmdList:
+		case client.CmdList:
 			// return list of users (clients) connected to the server
 			s.list(cmd.Client)
-		case command.CmdMsg:
+		case client.CmdMsg:
 			// send input to client contact
 			s.msg(cmd.Client, cmd.Args)
-		case command.CmdQuit:
+		case client.CmdQuit:
 			// quit chat system
 			s.quit(cmd.Client)
-		case command.CmdHelp:
+		case client.CmdHelp:
 			// return command list
 			s.help(cmd.Client)
 		}
@@ -66,12 +92,12 @@ func (s *server) run() {
 
 // function to instantiate new client :
 // called when a new client joins the server
-func (s *server) newClient(conn net.Conn) {
+func (s *server) NewClient(conn net.Conn) {
 
 	// generate RSA keys
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Fatalln(err)
+		logrus.WithError(err).Fatal("RSA key generate fail in NewClient")
 	}
 
 	// instantiate client
@@ -83,8 +109,7 @@ func (s *server) newClient(conn net.Conn) {
 		Private:  privateKey,
 		Public:   privateKey.PublicKey,
 	}
-
-	log.Printf("new client has joined : %s", conn.RemoteAddr().String())
+	logrus.Info("new client has joined : ", conn.RemoteAddr().String())
 
 	// start reading for input ( this is a blocking call on a separte go routine )
 	c.ReadInput()
@@ -163,11 +188,11 @@ func (s *server) msg(c *client.Client, args []string) {
 
 		// encrypt data
 		eMsg := crypto.Encrypt(msg, publicKey)
-		log.Printf("encrypting messages...")
+		logrus.Info("encrypting messages... from client:", c.Name)
 
 		// send the message
 		c.Msg(s.contacts[c.Contact], eMsg)
-		log.Printf("sending message to %s", c.Contact)
+		logrus.Info("sending message to ", c.Contact)
 
 	} else {
 
@@ -179,8 +204,7 @@ func (s *server) msg(c *client.Client, args []string) {
 
 // function to exit from chat
 func (s *server) quit(c *client.Client) {
-
-	log.Printf("client has left the chat: %s", c.Conn.RemoteAddr().String())
+	logrus.Info("client has left the chat: ", c.Conn.RemoteAddr().String())
 
 	// remove user from server contact list
 	_, ok := s.contacts[c.Name]
@@ -189,7 +213,7 @@ func (s *server) quit(c *client.Client) {
 	}
 
 	// pass message
-	c.Msg(c, "skychat will miss you...")
+	c.Msg(c, "We will miss you...")
 	// close client connection
 	c.Conn.Close()
 }
@@ -198,6 +222,6 @@ func (s *server) quit(c *client.Client) {
 func (s *server) help(c *client.Client) {
 
 	// pass message
-	c.Msg(c, "Skychat : Chat Platform\n\n Usage : /<command> [arguments]\n\n* name : Specify your name.\n* list : List connected users.\n* join : Specify message recepient.\n* msg  : Send message to recepient.\n* quit : Exit Skychat.\n* help : List help commands.\n")
+	c.Msg(c, "Picus Chat Platform\n\n Usage : /<command> [arguments]\n\n* name : Specify your name.\n* list : List connected users.\n* join : Specify message recepient.\n* msg  : Send message to recepient.\n* quit : Exit Chat App.\n* help : List help commands.\n")
 
 }

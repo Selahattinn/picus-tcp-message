@@ -3,25 +3,27 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"net"
 	"os"
 
 	"github.com/Selahattinn/picus-tcp-message/pkg/server"
 	"github.com/Selahattinn/picus-tcp-message/pkg/version"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
 var (
-	versionFlag = flag.Bool("version", false, "Show version information.")
-	debugFlag   = flag.Bool("debug", true, "Show debug information.")
-	addrFlag    = flag.String("addr", ":7654", "Listen address")
-	logFileFlag = flag.String("log.file", "tcp-message-server.log", "Path to the log file.")
+	configFileFlag = flag.String("config.file", "config.yml", "Path to the configuration file.")
+	versionFlag    = flag.Bool("version", false, "Show version information.")
+	debugFlag      = flag.Bool("debug", true, "Show debug information.")
+	logFileFlag    = flag.String("log.file", "tcp-message-server.log", "Path to the log file.")
 )
 
 func main() {
-	// Parse command-line flags
+	// getting flag values
 	flag.Parse()
 
-	// Show version information
 	if *versionFlag {
 		fmt.Fprintln(os.Stdout, version.Print("tcp-message-server"))
 		os.Exit(0)
@@ -44,20 +46,50 @@ func main() {
 		logrus.WithError(err).Fatal("Could not open log file")
 	}
 
+	// logrus log file setted
 	logrus.SetOutput(logFile)
 
-	server := server.New(&server.Config{
-		Addr: *addrFlag,
-	})
+	// Load configuration file
+	data, err := ioutil.ReadFile(*configFileFlag)
+	if err != nil {
+		logrus.WithError(err).Fatal("Could not load configuration")
+	}
+	var cfg server.Config
+	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		logrus.WithError(err).Fatal("Could not load configuration")
+	}
 
-	// start server
-	go func() {
-		logrus.Info("starting server at ", *addrFlag)
-		if err := server.Start(); err != nil {
-			fmt.Println(err)
-			logrus.Fatal(err)
+	// instantiate a server
+	s := server.NewServer(&cfg)
+	logrus.Info("created new server")
+
+	// run server in separate go routine
+	go s.Run()
+
+	// start listening...
+	listener, err := net.Listen("tcp", s.Config.ListenAddress)
+
+	if err != nil {
+		logrus.WithError(err).Fatal("unable to start server")
+	} else {
+		logrus.Info("listening to port ", s.Config.ListenAddress)
+	}
+
+	defer listener.Close()
+	// sometime later.. close listener
+
+	// continuously accept new connections
+	for {
+
+		conn, err := listener.Accept()
+		if err != nil {
+			logrus.WithError(err).Info("failed to accept connection")
+			continue
 		}
 
-	}()
+		go s.NewClient(conn)
+		logrus.Info("added new client : %s", conn.RemoteAddr().String())
+	}
 
 }

@@ -5,7 +5,8 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
-	"log"
+
+	"github.com/sirupsen/logrus"
 )
 
 // function to encrypt message to be sent
@@ -19,7 +20,8 @@ func Encrypt(msg string, key rsa.PublicKey) string {
 	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rng, &key, []byte(msg), label)
 	// check for errors
 	if err != nil {
-		log.Fatalln("unable to encrypt")
+		logrus.WithError(err).Fatal("unable to encrypt")
+
 	}
 
 	return base64.StdEncoding.EncodeToString(ciphertext)
@@ -36,7 +38,7 @@ func Decrypt(cipherText string, key rsa.PrivateKey) string {
 	plaintext, err := rsa.DecryptOAEP(sha256.New(), rng, &key, ct, label)
 	// check for errors
 	if err != nil {
-		log.Fatalln(err)
+		logrus.WithError(err).Fatal("Decrypt proccess fail")
 	}
 	return string(plaintext)
 }

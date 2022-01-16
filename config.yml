@@ -1,0 +1,7 @@
+host: localhost:8080
+
+database:
+  address: localhost:3306
+  username: root
+  password: rootpw
+  db_name: messages
