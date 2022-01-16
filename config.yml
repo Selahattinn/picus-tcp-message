@@ -3,5 +3,5 @@ host: localhost:8080
 database:
   address: localhost:3306
   username: root
-  password: autoOrder
+  password: passwd
   db_name: picus_tcp_chat
