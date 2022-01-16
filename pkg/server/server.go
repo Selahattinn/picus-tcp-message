@@ -25,6 +25,10 @@ type Config struct {
 	// DB configs
 	DB *repository.MySQLConfig `yaml:"database"`
 }
+type CmdStruct struct {
+	Type  string
+	Value string
+}
 
 // structure of server
 type server struct {
@@ -269,7 +273,7 @@ func (s *server) help(c *client.Client) {
 
 // For write to msg last X messages whic is sendend from me
 func (s *server) getMessageFromMe(c *client.Client, args []string) {
-	if len(args) > 2 {
+	if len(args)-1%2 == 1 {
 		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/getMessageFromMe 10")
 		return
 	}
@@ -286,6 +290,7 @@ func (s *server) getMessageFromMe(c *client.Client, args []string) {
 		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
 		return
 	}
+	messages = combination(messages, args)
 	messageString := ""
 	for _, message := range messages {
 		messageString += message.ToString()
@@ -296,8 +301,8 @@ func (s *server) getMessageFromMe(c *client.Client, args []string) {
 
 // For write to msg last X messages whic is recived to me
 func (s *server) getMessageToMe(c *client.Client, args []string) {
-	if len(args) > 2 {
-		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/getMessageFromMe 10")
+	if len(args)-1%2 == 1 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/getMessageTomMe 10")
 		return
 	}
 	if c.Name == "" || c.Name == "anonymous" {
@@ -313,6 +318,7 @@ func (s *server) getMessageToMe(c *client.Client, args []string) {
 		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
 		return
 	}
+	messages = combination(messages, args)
 	messageString := ""
 	for _, message := range messages {
 		messageString += message.ToString()
@@ -323,7 +329,7 @@ func (s *server) getMessageToMe(c *client.Client, args []string) {
 
 // For to write to msg which is last X messages
 func (s *server) getLastMassge(c *client.Client, args []string) {
-	if len(args) > 2 || len(args) < 2 {
+	if len(args)%2 == 1 {
 		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/get-last 10")
 		return
 	}
@@ -346,6 +352,7 @@ func (s *server) getLastMassge(c *client.Client, args []string) {
 		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
 		return
 	}
+	messages = combination(messages, args)
 	messageString := ""
 	for _, message := range messages {
 		messageString += message.ToString()
@@ -380,4 +387,33 @@ func (s *server) getContains(c *client.Client, args []string) {
 	}
 	c.Msg(c, messageString)
 
+}
+
+func combination(messages []model.Message, args []string) []model.Message {
+	for i := 1; i < len(args); i += 2 {
+		switch args[i] {
+		case "||contains":
+			var tmpMessages []model.Message
+			for _, message := range messages {
+				if strings.Contains(message.Text, args[i+1]) {
+					tmpMessages = append(tmpMessages, message)
+				}
+			}
+			messages = tmpMessages
+		case "||last":
+			value, err := strconv.Atoi(args[i+1])
+			if err != nil {
+				fmt.Println(err)
+			}
+			if len(messages) <= value {
+				break
+			}
+			var tmpMessages []model.Message
+			for index := len(messages) - value; index < len(messages); index++ {
+				tmpMessages = append(tmpMessages, messages[index])
+			}
+			messages = tmpMessages
+		}
+	}
+	return messages
 }
