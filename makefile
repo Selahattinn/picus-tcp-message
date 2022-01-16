@@ -1,4 +1,4 @@
-WHAT := server
+WHAT := server client
 
 PWD ?= $(shell pwd)
 

@@ -3,13 +3,15 @@ package repository
 import (
 	"database/sql"
 
+	"github.com/Selahattinn/picus-tcp-message/pkg/repository/message"
 	_ "github.com/go-sql-driver/mysql"
 )
 
 // MySQL Repository defines the MySQL implementation of Repository interface
 type MySQLRepository struct {
-	cfg *MySQLConfig
-	db  *sql.DB
+	cfg               *MySQLConfig
+	db                *sql.DB
+	messageRepository message.Repository
 }
 
 // MySQLConfig defines the MySQL Repository configuration
@@ -57,10 +59,20 @@ func NewMySQLRepository(cfg *MySQLConfig) (*MySQLRepository, error) {
 		return nil, err
 	}
 
+	messageRepository, err := message.NewMySQLRepository(db)
+	if err != nil {
+		return nil, err
+	}
 	return &MySQLRepository{
-		cfg: cfg,
-		db:  db,
+		cfg:               cfg,
+		db:                db,
+		messageRepository: messageRepository,
 	}, nil
+}
+
+// GetMessageRepository returns the message repository
+func (r *MySQLRepository) GetMessageRepository() message.Repository {
+	return r.messageRepository
 }
 
 // Shutdown closes the database connection

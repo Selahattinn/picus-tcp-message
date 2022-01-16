@@ -16,7 +16,7 @@ import (
 var (
 	configFileFlag = flag.String("config.file", "config.yml", "Path to the configuration file.")
 	versionFlag    = flag.Bool("version", false, "Show version information.")
-	debugFlag      = flag.Bool("debug", true, "Show debug information.")
+	debugFlag      = flag.Bool("debug", false, "Show debug information.")
 	logFileFlag    = flag.String("log.file", "tcp-message-server.log", "Path to the log file.")
 )
 
@@ -89,7 +89,7 @@ func main() {
 		}
 
 		go s.NewClient(conn)
-		logrus.Info("added new client : %s", conn.RemoteAddr().String())
+		logrus.Info("added new client ", conn.RemoteAddr().String())
 	}
 
 }

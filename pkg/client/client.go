@@ -22,6 +22,10 @@ const (
 	CmdMsg
 	CmdQuit
 	CmdHelp
+	CmdGetMessageFromMe
+	CmdGetLast
+	CmdGetContains
+	CmdGetMessageToMe
 )
 
 // structure for a command
@@ -117,6 +121,34 @@ func (c *Client) ReadInput() {
 			c.Commands <- Command{
 				ID:     CmdHelp,
 				Client: c,
+			}
+		case "/get-m-from-me":
+			// return all messages which is sended from user
+			c.Commands <- Command{
+				ID:     CmdGetMessageFromMe,
+				Client: c,
+				Args:   args,
+			}
+		case "/get-m-to-me":
+			// return all messages which is sended to user
+			c.Commands <- Command{
+				ID:     CmdGetMessageToMe,
+				Client: c,
+				Args:   args,
+			}
+		case "/get-last":
+			// return last X messages which is sended from user
+			c.Commands <- Command{
+				ID:     CmdGetLast,
+				Client: c,
+				Args:   args,
+			}
+		case "/get-contains":
+			// return all messages which is contains a word and also sended from user
+			c.Commands <- Command{
+				ID:     CmdGetContains,
+				Client: c,
+				Args:   args,
 			}
 			// for any other command
 		default:

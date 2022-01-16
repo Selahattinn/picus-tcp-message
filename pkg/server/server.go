@@ -5,20 +5,25 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/Selahattinn/picus-tcp-message/pkg/client"
 	"github.com/Selahattinn/picus-tcp-message/pkg/crypto"
+	"github.com/Selahattinn/picus-tcp-message/pkg/model"
 	"github.com/Selahattinn/picus-tcp-message/pkg/repository"
 	"github.com/Selahattinn/picus-tcp-message/pkg/service"
 	"github.com/sirupsen/logrus"
 )
 
 type Config struct {
+	// Host adress which server run
 	ListenAddress string `yaml:"host"`
 
-	Service *service.Config         `yaml:"service"`
-	DB      *repository.MySQLConfig `yaml:"database"`
+	// Service configs
+	Service *service.Config `yaml:"service"`
+	// DB configs
+	DB *repository.MySQLConfig `yaml:"database"`
 }
 
 // structure of server
@@ -70,10 +75,10 @@ func (s *server) Run() {
 		switch cmd.ID {
 		case client.CmdName:
 			// update client name to input
-			s.name(cmd.Client, cmd.Args[1])
+			s.name(cmd.Client, cmd.Args)
 		case client.CmdJoin:
 			// update client contact to input
-			s.join(cmd.Client, cmd.Args[1])
+			s.join(cmd.Client, cmd.Args)
 		case client.CmdList:
 			// return list of users (clients) connected to the server
 			s.list(cmd.Client)
@@ -86,7 +91,20 @@ func (s *server) Run() {
 		case client.CmdHelp:
 			// return command list
 			s.help(cmd.Client)
+		case client.CmdGetMessageFromMe:
+			// return Messages with limited from itself
+			s.getMessageFromMe(cmd.Client, cmd.Args)
+		case client.CmdGetMessageToMe:
+			// return Messages with limited from itself
+			s.getMessageToMe(cmd.Client, cmd.Args)
+		case client.CmdGetLast:
+			// return Messages with limited from itself
+			s.getLastMassge(cmd.Client, cmd.Args)
+		case client.CmdGetContains:
+			// return Messages with limited from itself
+			s.getContains(cmd.Client, cmd.Args)
 		}
+
 	}
 }
 
@@ -116,29 +134,43 @@ func (s *server) NewClient(conn net.Conn) {
 }
 
 // function to assign an identifer (name) to a newly created client
-func (s *server) name(c *client.Client, name string) {
-
+func (s *server) name(c *client.Client, args []string) {
+	if len(args) > 2 || len(args) < 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/name Selahattin")
+		return
+	}
 	// assign name to client
-	c.Name = name
+	c.Name = args[1]
 
 	// update server guest list i.e currently connected users (clients)
-	s.contacts[name] = c
+	// Control for client name
+	// Client name can not be equal to any clients name
+	for _, y := range s.contacts {
+		if y.Name == c.Name {
+			c.Msg(c, "There is a user which is used for this name. Please choose another name")
+			return
+		}
+	}
+	s.contacts[args[1]] = c
 
 	// give user feedback message
-	c.Msg(c, fmt.Sprintf("you will be known as %s", name))
+	c.Msg(c, fmt.Sprintf("you will be known as %s", args[1]))
 }
 
 // function to assign contact ( who a client is currently talkig to ) :
-func (s *server) join(c *client.Client, contactName string) {
-
+func (s *server) join(c *client.Client, args []string) {
+	if len(args) > 2 || len(args) < 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/join Selahattin")
+		return
+	}
 	// check if a user for given name exists on the server contacts map
-	_, ok := s.contacts[contactName]
+	_, ok := s.contacts[args[1]]
 
 	// if so...
-	if ok && contactName != "" {
+	if ok && args[1] != "" {
 
 		// update client contact ( this contact is who messages will be sent to )
-		c.Contact = contactName
+		c.Contact = args[1]
 		// pass feedback
 		c.Msg(c, fmt.Sprintf("You are now talking to :%s", c.Contact))
 
@@ -193,7 +225,16 @@ func (s *server) msg(c *client.Client, args []string) {
 		// send the message
 		c.Msg(s.contacts[c.Contact], eMsg)
 		logrus.Info("sending message to ", c.Contact)
+		message := &model.Message{
+			From: c.Name,
+			To:   c.Contact,
+			Text: strings.Join(args[1:], " "),
+		}
 
+		_, err := s.Service.GetMessageService().StoreMessage(*message)
+		if err != nil {
+			logrus.WithError(err).Info("Message not saved to db")
+		}
 	} else {
 
 		// otherwise, prompt user to join to a user
@@ -222,6 +263,121 @@ func (s *server) quit(c *client.Client) {
 func (s *server) help(c *client.Client) {
 
 	// pass message
-	c.Msg(c, "Picus Chat Platform\n\n Usage : /<command> [arguments]\n\n* name : Specify your name.\n* list : List connected users.\n* join : Specify message recepient.\n* msg  : Send message to recepient.\n* quit : Exit Chat App.\n* help : List help commands.\n")
+	c.Msg(c, "Picus Chat Platform\n\n Usage : /<command> [arguments]\n\n* name : Specify your name.\n* list : List connected users.\n* join : Specify message recepient.\n* msg  : Send message to recepient.\n* quit : Exit Chat App.\n* help : List help commands.\n* get-last : List of last sended messages.\n* get-contains : List of messages which is include this word.\n* get-m-to-me : lists all messages sent to me.\n* get-m-from-me : Lists all the messages I've sent.\n")
+
+}
+
+// For write to msg last X messages whic is sendend from me
+func (s *server) getMessageFromMe(c *client.Client, args []string) {
+	if len(args) > 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/getMessageFromMe 10")
+		return
+	}
+	if c.Name == "" || c.Name == "anonymous" {
+		// otherwise, prompt user to join to a user
+		c.Msg(c, "Okey I got your request but I dont know you.\nPlease Describe your self\n\nHint:)\nname : Specify your name.\n")
+		return
+	}
+	messages, err := s.Service.GetMessageService().GetAllMessages(c.Name)
+	if err != nil {
+		logrus.WithError(err).Info("GetMessageFromMe error user:", c.Name)
+	}
+	if len(messages) == 0 {
+		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
+		return
+	}
+	messageString := ""
+	for _, message := range messages {
+		messageString += message.ToString()
+	}
+	c.Msg(c, messageString)
+
+}
+
+// For write to msg last X messages whic is recived to me
+func (s *server) getMessageToMe(c *client.Client, args []string) {
+	if len(args) > 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/getMessageFromMe 10")
+		return
+	}
+	if c.Name == "" || c.Name == "anonymous" {
+		// otherwise, prompt user to join to a user
+		c.Msg(c, "Okey I got your request but I dont know you.\nPlease Describe your self\n\nHint:)\nname : Specify your name.\n")
+		return
+	}
+	messages, err := s.Service.GetMessageService().GetAllMessagesToMe(c.Name)
+	if err != nil {
+		logrus.WithError(err).Info("GetMessageFromMe error user:", c.Name)
+	}
+	if len(messages) == 0 {
+		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
+		return
+	}
+	messageString := ""
+	for _, message := range messages {
+		messageString += message.ToString()
+	}
+	c.Msg(c, messageString)
+
+}
+
+// For to write to msg which is last X messages
+func (s *server) getLastMassge(c *client.Client, args []string) {
+	if len(args) > 2 || len(args) < 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/get-last 10")
+		return
+	}
+	if c.Name == "" || c.Name == "anonymous" {
+		// otherwise, prompt user to join to a user
+		c.Msg(c, "Okey I got your request but I dont know you.\nPlease Describe your self\n\nHint:)\nname : Specify your name.\n")
+		return
+	}
+
+	_, err := strconv.Atoi(args[1])
+	if err != nil {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/get-last 10")
+		return
+	}
+	messages, err := s.Service.GetMessageService().GetLast(c.Name, args[1])
+	if err != nil {
+		logrus.WithError(err).Info("GetMessageFromMe error user:", c.Name)
+	}
+	if len(messages) == 0 {
+		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
+		return
+	}
+	messageString := ""
+	for _, message := range messages {
+		messageString += message.ToString()
+	}
+	c.Msg(c, messageString)
+
+}
+
+// For to write to msg which is contains a word
+func (s *server) getContains(c *client.Client, args []string) {
+	if len(args) > 2 || len(args) < 2 {
+		c.Msg(c, "Comand Error: \nCorrect Comamnd Example\n\n/get-last 10")
+		return
+	}
+	if c.Name == "" || c.Name == "anonymous" {
+		// otherwise, prompt user to join to a user
+		c.Msg(c, "Okey I got your request but I dont know you.\nPlease Describe your self\n\nHint:)\nname : Specify your name.\n")
+		return
+	}
+
+	messages, err := s.Service.GetMessageService().GetContains(c.Name, args[1])
+	if err != nil {
+		logrus.WithError(err).Info("GetMessageFromMe error user:", c.Name)
+	}
+	if len(messages) == 0 {
+		c.Msg(c, "You haven't sent a message yet. Now it's time to talk to someone")
+		return
+	}
+	messageString := ""
+	for _, message := range messages {
+		messageString += message.ToString()
+	}
+	c.Msg(c, messageString)
 
 }
