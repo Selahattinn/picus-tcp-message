@@ -404,6 +404,7 @@ func combination(messages []model.Message, args []string) []model.Message {
 			value, err := strconv.Atoi(args[i+1])
 			if err != nil {
 				fmt.Println(err)
+				continue
 			}
 			if len(messages) <= value {
 				break
