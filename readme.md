@@ -89,7 +89,6 @@ telnet localhost 8080
 -name : user name (default:Empty)
 
 Example Commands:
-./bin/client -name Test -addr :8080
 ./bin/client -name Test -addr localhost:8080
 ./bin/client -name Test -addr 127.0.0.1:8080
 ```
