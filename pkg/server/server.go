@@ -25,10 +25,6 @@ type Config struct {
 	// DB configs
 	DB *repository.MySQLConfig `yaml:"database"`
 }
-type CmdStruct struct {
-	Type  string
-	Value string
-}
 
 // structure of server
 type server struct {

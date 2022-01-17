@@ -13,9 +13,6 @@ import (
 )
 
 const (
-	CONN_PORT = ":3333"
-	CONN_TYPE = "tcp"
-
 	MSG_DISCONNECT = "Disconnected from the server.\n"
 )
 
@@ -113,7 +110,7 @@ func main() {
 		fmt.Println("Pls write a server adress\nExample:\n\t-addr localhost:8080\n\t-addr :8080\n\t-addr 127.0.0.1:8080")
 		os.Exit(1)
 	}
-	conn, err := net.Dial(CONN_TYPE, *addrFlag)
+	conn, err := net.Dial("tcp", *addrFlag)
 	if err != nil {
 		log.Fatalln(err)
 	}
